@@ -52,6 +52,7 @@ export class LocationService implements ILocationService {
 			console.log("Geospatial data added successfully.", addedDriver);
 		} catch (error) {
 			console.log("Error adding geospatial data: ", error);
+			throw error;
 		}
 	}
 
@@ -86,6 +87,7 @@ export class LocationService implements ILocationService {
 			console.log("Notified drivers successfully.");
 		} catch (error) {
 			console.log("Error storing notified drivers: ", error);
+			throw error;
 		}
 	}
 
@@ -94,6 +96,7 @@ export class LocationService implements ILocationService {
 			return await this.client.sMembers(`NotifiedDrivers: ${bookingId}`);
 		} catch (error) {
 			console.log("Error getting notified drivers: ", error);
+			throw error;
 		}
 	}
 }

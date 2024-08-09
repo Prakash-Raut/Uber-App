@@ -70,9 +70,6 @@ async function login(req: Request, res: Response) {
 			result.data.password
 		);
 
-		console.log("user", user);
-		console.log("token", token);
-
 		return res.status(200).json({
 			statusCode: 200,
 			success: true,
