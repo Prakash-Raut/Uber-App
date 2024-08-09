@@ -4,7 +4,11 @@
   "description": "ride sharing platform",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npx tsc && npx copyfiles -u 1 public/index.html dist/public",
+		"watch": "npx tsc -w",
+		"prestart": "npm run build",
+		"start": "npx nodemon dist/index.js",
+		"dev": "npx concurrently --kill-others \"npm run watch\" \"npm start\" "
   },
   "repository": {
     "type": "git",
