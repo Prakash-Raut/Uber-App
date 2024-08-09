@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0"
+		/>
+		<script src="https://cdn.tailwindcss.com"></script>
+
+		<title>Uber | Driver App</title>
+	</head>
+
+	<body>
+		<div class="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
+			<div class="sm:mx-auto sm:w-full sm:max-w-sm">
+				<img
+					class="mx-auto h-10 w-auto"
+					src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Uber_logo_2018.svg/640px-Uber_logo_2018.svg.png"
+					alt="Your Company"
+				/>
+				<h2
+					class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900"
+				>
+					Sign in to your account
+				</h2>
+			</div>
+
+			<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+				<div class="my-5">
+					<label
+						for="email"
+						class="block text-sm font-medium leading-6 text-gray-900"
+						>Email address</label
+					>
+					<div class="mt-2">
+						<input
+							id="email"
+							name="email"
+							type="email"
+							autocomplete="email"
+							required
+							class="block w-full rounded-md border-0 p-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+						/>
+					</div>
+				</div>
+
+				<div class="my-5">
+					<div class="flex items-center justify-between">
+						<label
+							for="password"
+							class="block text-sm font-medium leading-6 text-gray-900"
+							>Password</label
+						>
+						<div class="text-sm">
+							<a
+								href="#"
+								class="font-semibold text-indigo-600 hover:text-indigo-500"
+								>Forgot password?</a
+							>
+						</div>
+					</div>
+					<div class="mt-2">
+						<input
+							id="password"
+							name="password"
+							type="password"
+							autocomplete="current-password"
+							required
+							class="block w-full rounded-md border-0 p-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+						/>
+					</div>
+				</div>
+
+				<div class="my-5">
+					<button
+						type="submit"
+						class="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+						onclick="login()"
+					>
+						Log in
+					</button>
+				</div>
+			</div>
+
+			<div class="container">
+				<h2 class="text-4xl font-semibold">Booking Requests</h2>
+				<div id="bookingRequestsOutput"></div>
+			</div>
+		</div>
+
+		<script src="/socket.io/socket.io.js"></script>
+		<script>
+			let token = "";
+			let socket = io();
+
+			socket.on("connect", () => {
+				console.log("Connected to server");
+			});
+
+			async function login() {
+				const email = document.getElementById("email").value;
+				const password = document.getElementById("password").value;
+
+				try {
+					const response = await fetch(
+						"http://localhost:5010/api/v1/users/login",
+						{
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify({ email, password }),
+						}
+					);
+
+					if (!response.ok) {
+						throw new Error("Invalid credentials", response.status);
+					}
+
+					const data = await response.json();
+
+					token = data.data.token;
+
+					alert("Login successful");
+
+					socket = io("http://localhost:5010");
+
+					console.log(data);
+
+					socket.emit("registerDriver", data.data.user._id);
+
+					socket.on("newBooking", (data) => {
+						console.log(data);
+						const bookingRequestOutput = document.getElementById(
+							"bookingRequestsOutput"
+						);
+						const bookingRequest = document.createElement("div");
+						bookingRequest.className = "border p-2 my-2";
+						bookingRequest.id = `booking-${data.bookingId}`;
+						bookingRequest.innerHTML = `
+										<p>Booking Id: ${data.bookingId}</p>
+										<p>Source: ${data.source.latitude}, ${data.source.longitude}</p>
+										<p>Destination: ${data.destination.latitude}, ${data.destination.longitude}</p>
+										<p>Fare: ${data.fare}</p>
+										<button onclick="confirmBooking('${data.bookingId}')">Confirm Booking</button>
+									`;
+						bookingRequestOutput.appendChild(bookingRequest);
+					});
+
+					socket.on("removeBooking", (data) => {
+						const bookingElement = document.getElementById(
+							`booking-${data.bookingId}`
+						);
+
+						if (bookingElement) {
+							bookingElement.remove();
+						}
+					});
+
+					socket.on("rideConfirmed", (data) => {
+						const bookingElement = document.getElementById(
+							`booking-${data.bookingId}`
+						);
+
+						if (bookingElement) {
+							bookingElement.remove();
+							alert(`Booking confirmed: ${data.bookingId}`);
+						}
+					});
+				} catch (error) {
+					console.error("Failed to login", error);
+					alert("Failed to login");
+				}
+			}
+
+			async function confirmBooking(bookingId) {
+				try {
+					const response = await fetch(
+						`http://localhost:5010/api/v1/bookings/confirm`,
+						{
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${token}`,
+							},
+							body: JSON.stringify({ bookingId }),
+						}
+					);
+
+					if (!response.ok) {
+						throw new Error(
+							"Failed to accept booking",
+							response.status
+						);
+					}
+
+					const data = await response.json();
+
+					console.log(data);
+
+					alert("Booking Confirmed", JSON.stringify(data));
+
+					// remove the booking request from the UI after confirmation
+
+					const bookingElement = document.getElementById(
+						`booking-${bookingId}`
+					);
+
+					if (bookingElement) {
+						bookingElement.remove();
+					}
+				} catch (error) {
+					console.error("Failed to confirm booking", error);
+					alert("Failed to confirm booking");
+				}
+			}
+		</script>
+	</body>
+</html>
