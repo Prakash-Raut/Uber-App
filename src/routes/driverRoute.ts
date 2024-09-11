@@ -8,6 +8,6 @@ import { authMiddleware } from "../middlewares/authMiddleware";
 const driverRouter = Router();
 
 driverRouter.get("/bookings", authMiddleware, getDriverBookings);
-driverRouter.put("/locations", authMiddleware, updateDriverLocation);
+driverRouter.patch("/locations", authMiddleware, updateDriverLocation);
 
 export { driverRouter };

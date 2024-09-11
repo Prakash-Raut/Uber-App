@@ -46,6 +46,8 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
 		role: {
 			type: String,
 			enum: ["DRIVER", "PASSENGER"],
+			default: "PASSENGER",
+			required: [true, "Role is required"],
 		},
 		location: {
 			type: {

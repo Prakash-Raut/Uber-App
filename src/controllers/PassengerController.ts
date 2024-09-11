@@ -1,77 +1,84 @@
 import type { Request, Response } from "express";
-import { PassengerService } from "../services/PassengerService";
+import { Booking } from "../models/Booking";
+import { User } from "../models/User";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler";
 import { feedbackSchema } from "../validations/feedbackValidation";
 
-const passengerService = new PassengerService();
+const getPassengerBookings = asyncHandler(
+	async (req: Request, res: Response) => {
+		try {
+			const { passengerId } = req.user;
 
-async function getPassengerBookings(req: Request, res: Response) {
-	try {
-		const { id } = req.user;
-
-		const bookings = await passengerService.passengerBookings(id);
-
-		if (!bookings) {
-			return res.status(404).json({
-				statusCode: 404,
-				success: false,
-				message: "No bookings found",
+			const passenger = await User.findOne({
+				passenger: passengerId,
+				role: "PASSENGER",
 			});
+
+			if (!passenger) {
+				throw new ApiError(404, "Passenger not found");
+			}
+
+			const passengerBookings = await Booking.find({});
+
+			if (!passengerBookings) {
+				throw new ApiError(404, "No bookings found");
+			}
+
+			return res
+				.status(200)
+				.json(
+					new ApiResponse(
+						200,
+						passengerBookings,
+						"Passenger bookings retrieved successfully"
+					)
+				);
+		} catch (error) {
+			return res
+				.status(500)
+				.json(new ApiResponse(500, null, "Internal server error"));
 		}
-
-		return res.status(201).json({
-			statusCode: 201,
-			success: true,
-			message: "Bookings retrieved successfully",
-			data: {},
-		});
-	} catch (error) {
-		return res.status(400).json({
-			statusCode: 400,
-			success: false,
-			message: "Unable to retrieve bookings",
-		});
 	}
-}
+);
 
-async function provideFeedback(req: Request, res: Response) {
+const provideFeedback = asyncHandler(async (req: Request, res: Response) => {
 	try {
-		const { bookingId, rating, feedback } = req.body;
-		const { id } = req.user;
+		const { passengerId } = req.user;
 
-		const result = feedbackSchema.safeParse({
-			bookingId,
-			rating,
-			feedback,
-		});
+		const result = feedbackSchema.safeParse(req.body);
 
 		if (!result.success) {
-			return res.status(400).json({
-				statusCode: 400,
-				success: false,
-				message: result.error.message,
-			});
+			throw new ApiError(400, "All fields are required");
 		}
 
-		const givenFeedback = await passengerService.createFeedback(
-			id,
-			result.data.bookingId,
-			result.data.rating,
-			result.data.feedback
-		);
+		const givenFeedback = await Booking.findOne({
+			_id: result.data.bookingId,
+			passenger: passengerId,
+			rating: result.data.rating,
+			feedback: result.data.feedback,
+		});
 
-		return res.status(201).json({
-			statusCode: 201,
-			success: true,
-			message: "Feedback submitted successfully",
-			data: givenFeedback,
-		});
+		if (!givenFeedback) {
+			throw new ApiError(404, "Booking not found");
+		}
+
+		return res
+			.status(201)
+			.json(
+				new ApiResponse(
+					201,
+					givenFeedback,
+					"Feedback provided successfully"
+				)
+			);
 	} catch (error) {
-		return res.status(400).json({
-			statusCode: 400,
-			success: false,
-			message: "Unable to provide feedback",
-		});
+		console.error("Error providing feedback", error);
+		return res
+			.status(500)
+			.json(new ApiResponse(500, null, "Internal server error"));
 	}
-}
+});
 
 export { getPassengerBookings, provideFeedback };

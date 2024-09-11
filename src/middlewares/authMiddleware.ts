@@ -2,38 +2,43 @@ import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config/env";
 import { User } from "../models/User";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler";
 
 interface DecodedToken {
 	_id: string;
 }
 
-export async function authMiddleware(
-	req: Request,
-	res: Response,
-	next: NextFunction
-) {
-	try {
-		const token: string =
-			req.cookies?.token ||
-			req.header("Authorization")?.replace("Bearer ", "");
+export const authMiddleware = asyncHandler(
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const token: string =
+				req.cookies?.accessToken ||
+				req.header("Authorization")?.replace("Bearer ", "");
 
-		if (!token) {
-			res.status(401).json({ message: "Access Denied" });
+			if (!token) {
+				new ApiError(401, "Unauthorized request");
+			}
+
+			const decodedToken = jwt.verify(token, JWT_SECRET) as DecodedToken;
+
+			const user = await User.findById(decodedToken._id).select(
+				"-password"
+			);
+
+			if (!user) {
+				throw new ApiError(401, "Invalid access token");
+			}
+
+			req.user = user;
+
+			next();
+		} catch (error) {
+			console.error("Error authenticating user", error);
+			return res
+				.status(401)
+				.json(new ApiResponse(401, null, "Unauthorized request"));
 		}
-
-		const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
-
-		const user = await User.findById(decoded._id);
-
-		if (!user) {
-			res.status(400).json({ message: "Invalid token" });
-		}
-
-		req.user = user;
-
-		next();
-	} catch (error) {
-		console.log(error);
-		res.status(400).json({ message: "Unauthorized" });
 	}
-}
+);

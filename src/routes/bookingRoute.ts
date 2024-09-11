@@ -8,7 +8,11 @@ import { authMiddleware } from "../middlewares/authMiddleware";
 
 const bookingRouter = Router();
 
-bookingRouter.post("/create", authMiddleware, createBooking(io));
-bookingRouter.get("/confirm", authMiddleware, confirmBooking(io));
+bookingRouter.post("/create", authMiddleware, (req, res, next) =>
+	createBooking(io)(req, res, next)
+);
+bookingRouter.post("/confirm", authMiddleware, (req, res, next) =>
+	confirmBooking(io)(req, res, next)
+);
 
 export { bookingRouter };

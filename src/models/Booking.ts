@@ -1,4 +1,4 @@
-import { Document, Schema, Types, model } from "mongoose";
+import { Document, Model, Schema, Types, model } from "mongoose";
 
 export interface IBooking extends Document {
 	passenger: Types.ObjectId;
@@ -17,7 +17,11 @@ export interface IBooking extends Document {
 	feedback?: string;
 }
 
-const bookingSchema: Schema<IBooking> = new Schema(
+interface IBookingMethods {}
+
+interface IBookingModel extends Model<IBooking, {}, IBookingMethods> {}
+
+const bookingSchema = new Schema<IBooking, IBookingModel, IBookingMethods>(
 	{
 		passenger: {
 			type: Schema.Types.ObjectId,
@@ -73,4 +77,4 @@ const bookingSchema: Schema<IBooking> = new Schema(
 	}
 );
 
-export const Booking = model<IBooking>("Booking", bookingSchema);
+export const Booking = model<IBooking, IBookingModel>("Booking", bookingSchema);

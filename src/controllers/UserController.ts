@@ -1,91 +1,107 @@
 import type { Request, Response } from "express";
-import { AuthService } from "../services/AuthService";
+import { User } from "../models/User";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler";
 import { signinSchema } from "../validations/signinValidation";
+import { signupSchema } from "../validations/signupValidation";
 
-const authService = new AuthService();
-
-async function register(req: Request, res: Response) {
+const register = asyncHandler(async (req: Request, res: Response) => {
 	try {
-		const { email, password } = req.body;
-
-		const result = signinSchema.safeParse({
-			email,
-			password,
-		});
+		const result = signupSchema.safeParse(req.body);
 
 		if (!result.success) {
-			return res.status(400).json({
-				statusCode: 400,
-				success: false,
-				message: result.error.message,
-			});
+			throw new ApiError(400, "All fields are required");
 		}
 
-		const user = await authService.registerUser(
-			result.data.email,
-			result.data.password
-		);
+		const existedUser = await User.findOne({ email: result.data.email });
+
+		if (existedUser) {
+			throw new ApiError(409, "User with email already exists");
+		}
+
+		const user = await User.create({
+			...result.data,
+		});
+
+		const createdUser = await User.findById(user._id).select("-password");
+
+		if (!createdUser) {
+			throw new ApiError(
+				500,
+				"Something went wrong while registering user"
+			);
+		}
+
+		return res
+			.status(201)
+			.json(
+				new ApiResponse(
+					200,
+					createdUser,
+					"User registered successfully"
+				)
+			);
+	} catch (error) {
+		console.error("Error registering user", error);
+		return res
+			.status(500)
+			.json(new ApiResponse(500, null, "Internal server error"));
+	}
+});
+
+const login = asyncHandler(async (req: Request, res: Response) => {
+	try {
+		const result = signinSchema.safeParse(req.body);
+
+		if (!result.success) {
+			throw new ApiError(400, "All fields are required");
+		}
+
+		const user = await User.findOne({ email: result.data.email });
 
 		if (!user) {
-			return res.status(400).json({
-				statusCode: 400,
-				success: false,
-				message: "Unable to register user || User already exists",
-			});
+			throw new ApiError(404, "User does not exist");
 		}
 
-		return res.status(201).json({
-			statusCode: 201,
-			success: true,
-			message: "User registered successfully",
-		});
-	} catch (error) {
-		return res.status(400).json({
-			statusCode: 400,
-			success: false,
-			message: "Unable to register user || User already exists",
-		});
-	}
-}
+		const isMatch = await user.isPasswordCorrect(result.data.password);
 
-async function login(req: Request, res: Response) {
-	try {
-		const { email, password } = req.body;
-
-		const result = signinSchema.safeParse({
-			email,
-			password,
-		});
-
-		if (!result.success) {
-			return res.status(400).json({
-				statusCode: 400,
-				success: false,
-				message: result.error.message,
-			});
+		if (!isMatch) {
+			throw new ApiError(400, "Invalid credentials");
 		}
 
-		const { user, token } = await authService.loginUser(
-			result.data.email,
-			result.data.password
-		);
+		const accessToken = await user.generateToken();
 
-		return res.status(200).json({
-			statusCode: 200,
-			success: true,
-			message: "User logged in successfully",
-			data: {
-				user,
-				token,
-			},
-		});
+		if (!accessToken) {
+			throw new ApiError(500, "Unable to generate token");
+		}
+
+		const loggedInUser = await User.findById(user._id).select("-password");
+
+		const options = {
+			httpOnly: true,
+			secure: true,
+		};
+
+		return res
+			.status(200)
+			.cookie("accessToken", accessToken, options)
+			.json(
+				new ApiResponse(
+					200,
+					{
+						user: loggedInUser,
+						accessToken,
+					},
+					"User logged in successfully"
+				)
+			);
 	} catch (error) {
-		return res.status(400).json({
-			statusCode: 400,
-			success: false,
-			message: "Unable to login user, please check your credentials",
-		});
+		console.error("Error logging in user", error);
+		return res
+			.status(500)
+			.json(new ApiResponse(500, null, "Internal server error"));
 	}
-}
+});
 
 export { login, register };

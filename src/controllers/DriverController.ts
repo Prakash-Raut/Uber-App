@@ -1,61 +1,94 @@
 import type { Request, Response } from "express";
-import { DriverService } from "../services/DriverService";
+import { Booking } from "../models/Booking";
+import { User } from "../models/User";
+import { LocationService } from "../services/LocationService";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
+import { asyncHandler } from "../utils/asyncHandler";
 import { driverLocationUpdateSchema } from "../validations/driverValidation";
 
-const driverService = new DriverService();
+const locationService = new LocationService();
 
-async function getDriverBookings(req: Request, res: Response) {
-	console.log(req, res);
-	return "getDriverBookings";
-}
+const getDriverBookings = asyncHandler(async (req: Request, res: Response) => {
+	const { id: driverId } = req.user;
 
-async function updateDriverLocation(req: Request, res: Response) {
-	try {
-		const { longitude, latitude } = req.body;
-		const { id } = req.user;
+	const driver = await User.findOne({ _id: driverId, role: "DRIVER" });
 
-		const result = driverLocationUpdateSchema.safeParse({
-			longitude,
-			latitude,
-			driverId: id,
-		});
-
-		if (!result.success) {
-			return res.status(400).json({
-				statusCode: 400,
-				success: false,
-				message: "Invalid data",
-				errors: result.error.issues,
-			});
-		}
-
-		const updatedDriverLocation = await driverService.updateDriverLocation(
-			result.data.driverId,
-			result.data.longitude,
-			result.data.latitude
-		);
-
-		if (!updatedDriverLocation) {
-			return res.status(400).json({
-				statusCode: 400,
-				success: false,
-				message: "Unable to update driver location",
-			});
-		}
-
-		return res.status(200).json({
-			statusCode: 200,
-			success: true,
-			message: "Driver location updated successfully",
-			data: updatedDriverLocation,
-		});
-	} catch (error) {
-		res.status(400).json({
-			statusCode: 400,
-			success: false,
-			message: "Unable to update driver location",
-		});
+	if (!driver) {
+		throw new ApiError(404, "Driver not found");
 	}
-}
+
+	const driverBookings = await Booking.find({ driver: driverId });
+
+	if (!driverBookings) {
+		throw new ApiError(404, "No bookings found");
+	}
+
+	return res
+		.status(200)
+		.json(
+			new ApiResponse(
+				200,
+				driverBookings,
+				"Driver bookings retrieved successfully"
+			)
+		);
+});
+
+const updateDriverLocation = asyncHandler(
+	async (req: Request, res: Response) => {
+		try {
+			const result = driverLocationUpdateSchema.safeParse(req.body);
+
+			if (!result.success) {
+				throw new ApiError(400, "All fields are required");
+			}
+
+			let { longitude, latitude, driverId } = result.data;
+
+			longitude = parseFloat(longitude.toString());
+			latitude = parseFloat(latitude.toString());
+
+			if (isNaN(longitude) || isNaN(latitude)) {
+				throw new ApiError(400, "Invalid coordinates");
+			}
+
+			await locationService.addDriverLocation(
+				driverId,
+				longitude,
+				latitude
+			);
+
+			const updatedDriverLocation = await User.findByIdAndUpdate(
+				driverId,
+				{
+					location: {
+						type: "Point",
+						coordinates: [longitude, latitude],
+					},
+				}
+			).select("-password");
+
+			if (!updatedDriverLocation) {
+				throw new ApiError(400, "Unable to update driver location");
+			}
+
+			return res
+				.status(200)
+				.json(
+					new ApiResponse(
+						200,
+						updatedDriverLocation,
+						"Driver location updated successfully"
+					)
+				);
+		} catch (error) {
+			console.error("Error updating driver location: ", error);
+			res.status(500).json(
+				new ApiResponse(500, null, "Internal server error")
+			);
+		}
+	}
+);
 
 export { getDriverBookings, updateDriverLocation };
