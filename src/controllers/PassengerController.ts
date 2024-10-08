@@ -8,77 +8,64 @@ import { feedbackSchema } from "../validations/feedbackValidation";
 
 const getPassengerBookings = asyncHandler(
 	async (req: Request, res: Response) => {
-		try {
-			const { passengerId } = req.user;
+		const { passengerId } = req.user;
 
-			const passenger = await User.findOne({
-				passenger: passengerId,
-				role: "PASSENGER",
-			});
+		const passenger = await User.findOne({
+			passenger: passengerId,
+			role: "PASSENGER",
+		});
 
-			if (!passenger) {
-				throw new ApiError(404, "Passenger not found");
-			}
-
-			const passengerBookings = await Booking.find({});
-
-			if (!passengerBookings) {
-				throw new ApiError(404, "No bookings found");
-			}
-
-			return res
-				.status(200)
-				.json(
-					new ApiResponse(
-						200,
-						passengerBookings,
-						"Passenger bookings retrieved successfully"
-					)
-				);
-		} catch (error) {
-			return res
-				.status(500)
-				.json(new ApiResponse(500, null, "Internal server error"));
+		if (!passenger) {
+			throw new ApiError(404, "Passenger not found");
 		}
+
+		const passengerBookings = await Booking.find({});
+
+		if (!passengerBookings) {
+			throw new ApiError(404, "No bookings found");
+		}
+
+		return res
+			.status(200)
+			.json(
+				new ApiResponse(
+					200,
+					passengerBookings,
+					"Passenger bookings retrieved successfully"
+				)
+			);
 	}
 );
 
 const provideFeedback = asyncHandler(async (req: Request, res: Response) => {
-	try {
-		const { passengerId } = req.user;
+	const { passengerId } = req.user;
 
-		const result = feedbackSchema.safeParse(req.body);
+	const result = feedbackSchema.safeParse(req.body);
 
-		if (!result.success) {
-			throw new ApiError(400, "All fields are required");
-		}
-
-		const givenFeedback = await Booking.findOne({
-			_id: result.data.bookingId,
-			passenger: passengerId,
-			rating: result.data.rating,
-			feedback: result.data.feedback,
-		});
-
-		if (!givenFeedback) {
-			throw new ApiError(404, "Booking not found");
-		}
-
-		return res
-			.status(201)
-			.json(
-				new ApiResponse(
-					201,
-					givenFeedback,
-					"Feedback provided successfully"
-				)
-			);
-	} catch (error) {
-		console.error("Error providing feedback", error);
-		return res
-			.status(500)
-			.json(new ApiResponse(500, null, "Internal server error"));
+	if (!result.success) {
+		throw new ApiError(400, "All fields are required");
 	}
+
+	const givenFeedback = await Booking.findOne({
+		_id: result.data.bookingId,
+		passenger: passengerId,
+		rating: result.data.rating,
+		feedback: result.data.feedback,
+	});
+
+	if (!givenFeedback) {
+		throw new ApiError(404, "Booking not found");
+	}
+
+	return res
+		.status(201)
+		.json(
+			new ApiResponse(
+				201,
+				givenFeedback,
+				"Feedback provided successfully"
+			)
+		);
 });
 
 export { getPassengerBookings, provideFeedback };

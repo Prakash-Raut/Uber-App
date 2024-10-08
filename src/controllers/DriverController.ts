@@ -37,57 +37,43 @@ const getDriverBookings = asyncHandler(async (req: Request, res: Response) => {
 
 const updateDriverLocation = asyncHandler(
 	async (req: Request, res: Response) => {
-		try {
-			const result = driverLocationUpdateSchema.safeParse(req.body);
+		const result = driverLocationUpdateSchema.safeParse(req.body);
 
-			if (!result.success) {
-				throw new ApiError(400, "All fields are required");
-			}
-
-			let { longitude, latitude, driverId } = result.data;
-
-			longitude = parseFloat(longitude.toString());
-			latitude = parseFloat(latitude.toString());
-
-			if (isNaN(longitude) || isNaN(latitude)) {
-				throw new ApiError(400, "Invalid coordinates");
-			}
-
-			await locationService.addDriverLocation(
-				driverId,
-				longitude,
-				latitude
-			);
-
-			const updatedDriverLocation = await User.findByIdAndUpdate(
-				driverId,
-				{
-					location: {
-						type: "Point",
-						coordinates: [longitude, latitude],
-					},
-				}
-			).select("-password");
-
-			if (!updatedDriverLocation) {
-				throw new ApiError(400, "Unable to update driver location");
-			}
-
-			return res
-				.status(200)
-				.json(
-					new ApiResponse(
-						200,
-						updatedDriverLocation,
-						"Driver location updated successfully"
-					)
-				);
-		} catch (error) {
-			console.error("Error updating driver location: ", error);
-			res.status(500).json(
-				new ApiResponse(500, null, "Internal server error")
-			);
+		if (!result.success) {
+			throw new ApiError(400, "All fields are required");
 		}
+
+		let { longitude, latitude, driverId } = result.data;
+
+		longitude = parseFloat(longitude.toString());
+		latitude = parseFloat(latitude.toString());
+
+		if (isNaN(longitude) || isNaN(latitude)) {
+			throw new ApiError(400, "Invalid coordinates");
+		}
+
+		await locationService.addDriverLocation(driverId, longitude, latitude);
+
+		const updatedDriverLocation = await User.findByIdAndUpdate(driverId, {
+			location: {
+				type: "Point",
+				coordinates: [longitude, latitude],
+			},
+		}).select("-password");
+
+		if (!updatedDriverLocation) {
+			throw new ApiError(400, "Unable to update driver location");
+		}
+
+		return res
+			.status(200)
+			.json(
+				new ApiResponse(
+					200,
+					updatedDriverLocation,
+					"Driver location updated successfully"
+				)
+			);
 	}
 );
 
